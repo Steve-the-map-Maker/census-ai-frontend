@@ -4,22 +4,57 @@ import 'leaflet/dist/leaflet.css';
 import './MapDisplay.css';
 
 function MapDisplay({ geojsonData, variableId, mapCenter = [39.8283, -98.5795], mapZoom = 4 }) {
+  console.log('MapDisplay props:', { variableId, featureCount: geojsonData.features?.length });
+  console.log('Sample feature properties:', geojsonData.features?.[0]?.properties);
+  
   // Calculate min and max values for the color scale
   const values = geojsonData.features
-    .map(feature => parseFloat(feature.properties[variableId]))
-    .filter(value => !isNaN(value) && value !== null);
+    .map(feature => {
+      const value = feature.properties[variableId];
+      console.log(`Feature property ${variableId}:`, value, typeof value);
+      return parseFloat(value);
+    })
+    .filter(value => !isNaN(value) && value !== null && value !== undefined);
+  
+  console.log('Values for color scale:', { values: values.slice(0, 5), total: values.length, variableId });
+  
+  if (values.length === 0) {
+    console.warn('No valid values found for color scale');
+    console.log('Available properties in first feature:', Object.keys(geojsonData.features?.[0]?.properties || {}));
+    return <div>No data available for visualization. Variable: {variableId}</div>;
+  }
   
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
   
-  // Create a color scale using chroma-js
-  const colorScale = chroma.scale(['#ffffcc', '#a1dab4', '#41b6c4', '#2c7fb8', '#253494']).domain([minValue, maxValue]);
+  console.log('Min/Max values:', { minValue, maxValue });
+  
+  // Create a color scale using chroma-js with error handling
+  let colorScale;
+  try {
+    colorScale = chroma.scale(['#ffffcc', '#a1dab4', '#41b6c4', '#2c7fb8', '#253494']).domain([minValue, maxValue]);
+  } catch (error) {
+    console.error('Error creating color scale:', error);
+    // Fallback to a simple color scale
+    colorScale = chroma.scale(['#cccccc', '#333333']).domain([minValue, maxValue]);
+  }
   
   // Style function for GeoJSON features
   const style = (feature) => {
     const value = parseFloat(feature.properties[variableId]);
+    let fillColor = '#cccccc'; // default gray color
+    
+    if (!isNaN(value) && value !== null && value !== undefined) {
+      try {
+        fillColor = colorScale(value).hex();
+      } catch (error) {
+        console.warn('Error applying color scale to value:', value, error);
+        fillColor = '#cccccc';
+      }
+    }
+    
     return {
-      fillColor: isNaN(value) || value === null ? '#cccccc' : colorScale(value).hex(),
+      fillColor: fillColor,
       weight: 1,
       opacity: 1,
       color: '#666',
