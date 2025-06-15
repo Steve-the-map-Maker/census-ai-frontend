@@ -152,3 +152,201 @@
   background-color: #555;
   cursor: not-allowed;
 }
+
+/* === PHASE 3: GEOJSON LOADING & MAP INTERFACE STYLES === */
+
+/* Loading overlay */
+.loading-overlay, .error-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(20, 20, 20, 0.95);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.loading-content, .error-content {
+  text-align: center;
+  padding: 40px;
+  border-radius: 12px;
+  background-color: #2d2d2d;
+  border: 1px solid #444;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  max-width: 400px;
+}
+
+.loading-content h2, .error-content h2 {
+  margin-top: 0;
+  color: #f1f1f1;
+  font-size: 1.5rem;
+}
+
+.loading-content p, .error-content p {
+  color: #bbb;
+  margin: 10px 0;
+  line-height: 1.5;
+}
+
+.error-content button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 6px;
+  background-color: #007bff;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  margin-top: 15px;
+}
+
+.error-content button:hover {
+  background-color: #0056b3;
+}
+
+/* Welcome message in chat */
+.welcome-message {
+  background: linear-gradient(135deg, #007bff, #0056b3);
+  color: white;
+  padding: 25px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.welcome-message h2 {
+  margin: 0 0 15px 0;
+  font-size: 1.8rem;
+}
+
+.welcome-message p {
+  margin: 10px 0;
+  line-height: 1.5;
+}
+
+.welcome-message .suggestion {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 15px;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+/* Map container styles */
+.map-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  background-color: #1a1a1a;
+}
+
+.map-header {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #2d2d2d;
+  border-bottom: 1px solid #444;
+  gap: 15px;
+}
+
+.back-button {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  background-color: #555;
+  color: white;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.back-button:hover {
+  background-color: #666;
+}
+
+.map-header h3 {
+  margin: 0;
+  color: #f1f1f1;
+  font-size: 1.3rem;
+}
+
+/* Map placeholder styles (to be replaced with actual map) */
+.map-container {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-color: #f8f9fa;
+}
+
+.map-header {
+  display: flex;
+  align-items: center;
+  padding: 15px 20px;
+  background-color: #ffffff;
+  border-bottom: 1px solid #dee2e6;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.back-button {
+  background: none;
+  border: 1px solid #007bff;
+  color: #007bff;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-right: 15px;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+.map-header h3 {
+  margin: 0;
+  color: #333;
+  font-size: 1.2rem;
+}
+
+.map-container .map-display {
+  flex-grow: 1;
+  height: calc(100vh - 70px); /* Subtract header height */
+}
+
+/* Enhanced chat window positioning when map data is ready */
+.app-container .chat-window {
+  height: 100vh;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .app-container {
+    padding: 0;
+    margin: 0;
+    border-radius: 0;
+    height: 100vh;
+  }
+  
+  .chat-window {
+    border-radius: 0;
+    border: none;
+  }
+  
+  .welcome-message {
+    margin: 15px;
+  }
+  
+  .loading-content, .error-content {
+    margin: 20px;
+    padding: 30px 20px;
+  }
+}
