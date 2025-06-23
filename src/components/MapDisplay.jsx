@@ -3,9 +3,12 @@ import chroma from 'chroma-js';
 import 'leaflet/dist/leaflet.css';
 import './MapDisplay.css';
 
-function MapDisplay({ geojsonData, variableId, mapCenter = [39.8283, -98.5795], mapZoom = 4 }) {
-  console.log('MapDisplay props:', { variableId, featureCount: geojsonData.features?.length });
+function MapDisplay({ geojsonData, variableId, variableLabels = {}, mapCenter = [39.8283, -98.5795], mapZoom = 4 }) {
+  console.log('MapDisplay props:', { variableId, variableLabels, featureCount: geojsonData.features?.length });
   console.log('Sample feature properties:', geojsonData.features?.[0]?.properties);
+  
+  // Get human-readable label for the variable
+  const variableLabel = variableLabels[variableId] || variableId;
   
   // Calculate min and max values for the color scale
   const values = geojsonData.features
@@ -21,7 +24,7 @@ function MapDisplay({ geojsonData, variableId, mapCenter = [39.8283, -98.5795], 
   if (values.length === 0) {
     console.warn('No valid values found for color scale');
     console.log('Available properties in first feature:', Object.keys(geojsonData.features?.[0]?.properties || {}));
-    return <div>No data available for visualization. Variable: {variableId}</div>;
+    return <div>No data available for visualization. Variable: {variableLabel}</div>;
   }
   
   const minValue = Math.min(...values);
@@ -66,10 +69,10 @@ function MapDisplay({ geojsonData, variableId, mapCenter = [39.8283, -98.5795], 
   const onEachFeature = (feature, layer) => {
     const value = feature.properties[variableId];
     const name = feature.properties.NAME || feature.properties.name || 'Unknown';
-    const formattedValue = value ? parseFloat(value).toLocaleString() : 'No data';
+    const formattedValue = value ? parseFloat(value).toLocaleString(undefined, {maximumFractionDigits: 2}) : 'No data';
     
     layer.bindTooltip(
-      `<strong>${name}</strong><br/>${variableId}: ${formattedValue}`,
+      `<strong>${name}</strong><br/>${variableLabel}: ${formattedValue}`,
       {
         permanent: false,
         direction: 'center',
@@ -129,7 +132,7 @@ function MapDisplay({ geojsonData, variableId, mapCenter = [39.8283, -98.5795], 
             }}
           ></div>
         </div>
-        <p className="legend-description">{variableId}</p>
+        <p className="legend-description">{variableLabel}</p>
       </div>
     </div>
   );

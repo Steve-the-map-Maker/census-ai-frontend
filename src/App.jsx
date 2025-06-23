@@ -3,6 +3,84 @@ import axios from 'axios';
 import MapDisplay from './components/MapDisplay';
 import './App.css'; // We will create this file for styles
 
+// Help component
+function HelpModal({ isOpen, onClose }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="help-modal-overlay" onClick={onClose}>
+      <div className="help-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="help-modal-header">
+          <h2>🗺️ How to Use Census AI Visualizer</h2>
+          <button className="close-button" onClick={onClose}>×</button>
+        </div>
+        <div className="help-modal-body">
+          <section>
+            <h3>📊 What You Can Ask For</h3>
+            <div className="help-examples">
+              <div className="help-category">
+                <h4>Basic Demographics</h4>
+                <ul>
+                  <li>"Show population by state"</li>
+                  <li>"Map median household income"</li>
+                  <li>"Counties in California by population"</li>
+                  <li>"Show unemployment rates by state"</li>
+                </ul>
+              </div>
+              
+              <div className="help-category">
+                <h4>Comparative Analysis</h4>
+                <ul>
+                  <li>"Which states have more men than women?"</li>
+                  <li>"Show states with highest unemployment"</li>
+                  <li>"Compare male vs female population"</li>
+                </ul>
+              </div>
+              
+              <div className="help-category">
+                <h4>Geographic Levels</h4>
+                <ul>
+                  <li><strong>States:</strong> "Population by state"</li>
+                  <li><strong>Counties:</strong> "Counties in Texas by income"</li>
+                  <li><strong>Places:</strong> "Cities in Florida"</li>
+                </ul>
+              </div>
+            </div>
+          </section>
+          
+          <section>
+            <h3>🎯 Available Data</h3>
+            <div className="data-categories">
+              <div className="data-category">
+                <strong>Population:</strong> Total, by age, by gender
+              </div>
+              <div className="data-category">
+                <strong>Economics:</strong> Income, employment, poverty
+              </div>
+              <div className="data-category">
+                <strong>Housing:</strong> Ownership, units, values
+              </div>
+              <div className="data-category">
+                <strong>Education:</strong> Attainment levels
+              </div>
+            </div>
+          </section>
+          
+          <section>
+            <h3>💡 Tips</h3>
+            <ul>
+              <li>Be specific about the geographic level (state, county, city)</li>
+              <li>Use natural language - ask like you're talking to a person</li>
+              <li>Try comparative questions to discover insights</li>
+              <li>Click on map areas to see detailed data</li>
+            </ul>
+          </section>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Phase 3: Utility function to merge demographic data with GeoJSON
 function mergeData(geoJson, demographicData, geoLevel, variableId) {
   console.log('Merging data:', { geoLevel, variableId, demographicDataCount: demographicData.length });
@@ -81,6 +159,7 @@ function App() {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   
   // Phase 3: GeoJSON data state management
   const [geoData, setGeoData] = useState({
@@ -194,13 +273,14 @@ function App() {
           baseGeoJson,
           responseData.data,
           geoLevel,
-          responseData.metadata.variable_id
+          responseData.metadata.display_variable_id || responseData.metadata.variable_id
         );
         
         // Set the active map data to display the map
         setActiveMapData({
           geojsonData: enrichedGeoJson,
-          variableId: responseData.metadata.variable_id,
+          variableId: responseData.metadata.display_variable_id || responseData.metadata.variable_id,
+          variableLabels: responseData.metadata.variable_labels || {},
           metadata: responseData.metadata,
           mapCenter: getMapCenter(geoLevel, responseData.metadata.state_name),
           mapZoom: geoLevel === 'county' ? 6 : 4
@@ -297,6 +377,9 @@ function App() {
 
   return (
     <div className="app-container">
+      {/* Help Modal */}
+      <HelpModal isOpen={showHelp} onClose={() => setShowHelp(false)} />
+      
       {/* Phase 3: Show loading state until GeoJSON data is ready */}
       {!geoData.isLoaded && !geoData.loadingError && (
         <div className="loading-overlay">
@@ -323,9 +406,58 @@ function App() {
         <div className="chat-window">
           <div className="messages-area">
             <div className="welcome-message">
-              <h2>🗺️ Census AI Visualizer</h2>
-              <p>Ask me about U.S. demographic data and I can show you interactive maps!</p>
-              <p className="suggestion">Try: "Show me a map of population by state" or "Map median income for California counties"</p>
+              <div className="welcome-header">
+                <h2>🗺️ Census AI Visualizer</h2>
+                <button className="help-button" onClick={() => setShowHelp(true)}>
+                  ❓ Help & Examples
+                </button>
+              </div>
+              <p>Ask me about U.S. demographic data and I'll create interactive maps for you!</p>
+              
+              <div className="quick-examples">
+                <h3>✨ Try These Examples:</h3>
+                <div className="example-buttons">
+                  <button 
+                    className="example-button"
+                    onClick={() => setInput("Show population by state")}
+                  >
+                    📊 Population by State
+                  </button>
+                  <button 
+                    className="example-button"
+                    onClick={() => setInput("Which states have more men than women?")}
+                  >
+                    👥 Gender Comparison
+                  </button>
+                  <button 
+                    className="example-button"
+                    onClick={() => setInput("Map median household income by state")}
+                  >
+                    💰 Income by State
+                  </button>
+                  <button 
+                    className="example-button"
+                    onClick={() => setInput("Counties in California by population")}
+                  >
+                    🏘️ California Counties
+                  </button>
+                </div>
+              </div>
+              
+              <div className="features-highlight">
+                <div className="feature">
+                  <span className="feature-icon">🗺️</span>
+                  <span>Interactive Maps</span>
+                </div>
+                <div className="feature">
+                  <span className="feature-icon">📈</span>
+                  <span>Comparative Analysis</span>
+                </div>
+                <div className="feature">
+                  <span className="feature-icon">🎯</span>
+                  <span>Natural Language Queries</span>
+                </div>
+              </div>
             </div>
             {messages.map((msg, index) => (
               <div key={index} className={`message ${msg.sender}`}>
@@ -362,6 +494,7 @@ function App() {
           <MapDisplay
             geojsonData={activeMapData.geojsonData}
             variableId={activeMapData.variableId}
+            variableLabels={activeMapData.variableLabels}
             mapCenter={activeMapData.mapCenter}
             mapZoom={activeMapData.mapZoom}
           />
