@@ -177,6 +177,19 @@ function App() {
 
   // Phase 3: Load GeoJSON files on component mount
   useEffect(() => {
+    // Warm up the backend when the component mounts
+    const warmUpBackend = async () => {
+      try {
+        console.log('Attempting to warm up backend...');
+        await fetch(`${backendUrl}/`);
+        console.log('Backend warm-up initiated successfully.');
+      } catch (error) {
+        console.error('Error warming up backend:', error);
+      }
+    };
+
+    warmUpBackend();
+
     console.log('Starting GeoJSON data loading...');
     const loadGeoJSONData = async () => {
       try {
