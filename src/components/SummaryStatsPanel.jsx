@@ -59,18 +59,24 @@ function SummaryStatsPanel({ summaryStatistics, variableLabels, selectedVariable
         </div>
       </div>
       
-      {stats.min_entity_name && stats.max_entity_name && (
-        <div className="extremes">
-          <div className="extreme-item">
-            <span className="extreme-label">Lowest:</span>
-            <span className="extreme-value">{stats.min_entity_name}</span>
-          </div>
-          <div className="extreme-item">
-            <span className="extreme-label">Highest:</span>
-            <span className="extreme-value">{stats.max_entity_name}</span>
-          </div>
+      <div className="extremes">
+        <div className="extreme-item">
+          <span className="extreme-label">Lowest:</span>
+          <span className="extreme-value">
+            {stats.min_entity_name && stats.min_entity_name !== 'N/A' 
+              ? stats.min_entity_name 
+              : 'N/A'}
+          </span>
         </div>
-      )}
+        <div className="extreme-item">
+          <span className="extreme-label">Highest:</span>
+          <span className="extreme-value">
+            {stats.max_entity_name && stats.max_entity_name !== 'N/A' 
+              ? stats.max_entity_name 
+              : 'N/A'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
 function ChartsPanel({ charts, variableLabels }) {
   if (!charts || charts.length === 0) {
@@ -9,6 +9,13 @@ function ChartsPanel({ charts, variableLabels }) {
       </div>
     );
   }
+
+  // Color palette for better visual appeal
+  const colorPalette = [
+    '#667eea', '#764ba2', '#f093fb', '#f5576c', 
+    '#4facfe', '#00f2fe', '#43e97b', '#38f9d7',
+    '#fad0c4', '#ffd1ff', '#a8edea', '#fed6e3'
+  ];
 
   const formatTooltipValue = (value, name) => {
     // Check if this is likely a percentage
@@ -34,14 +41,15 @@ function ChartsPanel({ charts, variableLabels }) {
           return (
             <div key={index} className="chart-container">
               <h4>{chart.title}</h4>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={chart.data} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <ResponsiveContainer width="100%" height={350}>
+                <BarChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
                   <XAxis 
                     dataKey="name" 
                     angle={-45}
                     textAnchor="end"
                     height={80}
-                    fontSize={12}
+                    fontSize={11}
+                    stroke="#666"
                   />
                   <YAxis 
                     tickFormatter={(value) => {
@@ -52,23 +60,29 @@ function ChartsPanel({ charts, variableLabels }) {
                       }
                       return value.toString();
                     }}
+                    fontSize={11}
+                    stroke="#666"
                   />
                   <Tooltip 
                     formatter={formatTooltipValue}
-                    labelStyle={{ color: '#333' }}
+                    labelStyle={{ color: '#333', fontWeight: 'bold' }}
                     contentStyle={{ 
-                      backgroundColor: '#f9f9f9', 
+                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
                       border: '1px solid #ddd',
-                      borderRadius: '4px'
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
                     }}
                   />
                   <Legend />
                   <Bar 
                     dataKey="value" 
-                    fill="#667eea" 
                     name={variableName}
-                    radius={[4, 4, 0, 0]}
-                  />
+                    radius={[6, 6, 0, 0]}
+                  >
+                    {chart.data.map((entry, idx) => (
+                      <Cell key={`cell-${idx}`} fill={colorPalette[idx % colorPalette.length]} />
+                    ))}
+                  </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
