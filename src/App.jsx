@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import MapDisplay from './components/MapDisplay';
+import Dashboard from './components/Dashboard';
 import './App.css'; // We will create this file for styles
 
 // Help component
@@ -261,50 +262,67 @@ function App() {
       const response = await axios.post(`${backendUrl}/ask_ai`, { query: userMessage.text });
       const responseData = response.data;
       
-      // Phase 3: Check if the response contains map data
-      if (responseData.type === 'map' && responseData.data && responseData.metadata) {
-        console.log('Map response received:', responseData);
+      // Phase 7: Check if the response contains dashboard data or map data
+      if ((responseData.type === 'dashboard_data' || responseData.type === 'map') && responseData.data && responseData.metadata) {
+        console.log('Dashboard/Map response received:', responseData);
         
-        // Get the appropriate GeoJSON data based on geography level
-        let baseGeoJson;
-        const geoLevel = responseData.metadata.geography_level;
-        
-        if (geoLevel === 'state') {
-          baseGeoJson = geoData.states;
-        } else if (geoLevel === 'county') {
-          baseGeoJson = geoData.counties;
+        // For dashboard_data, we use the new Dashboard component
+        if (responseData.type === 'dashboard_data') {
+          setActiveMapData({
+            type: 'dashboard',
+            dashboardData: responseData
+          });
+          
+          // Add a text message about the dashboard
+          const aiMessage = { 
+            sender: 'ai', 
+            text: responseData.summary_text || `Created dashboard for ${responseData.metadata.geography_level}-level analysis` 
+          };
+          setMessages((prevMessages) => [...prevMessages, aiMessage]);
         } else {
-          throw new Error(`Unsupported geography level: ${geoLevel}`);
+          // Original map logic for backwards compatibility
+          // Get the appropriate GeoJSON data based on geography level
+          let baseGeoJson;
+          const geoLevel = responseData.metadata.geography_level;
+          
+          if (geoLevel === 'state') {
+            baseGeoJson = geoData.states;
+          } else if (geoLevel === 'county') {
+            baseGeoJson = geoData.counties;
+          } else {
+            throw new Error(`Unsupported geography level: ${geoLevel}`);
+          }
+          
+          if (!baseGeoJson) {
+            throw new Error(`GeoJSON data not available for ${geoLevel} level`);
+          }
+          
+          // Merge the demographic data with GeoJSON
+          const enrichedGeoJson = mergeData(
+            baseGeoJson,
+            responseData.data,
+            geoLevel,
+            responseData.metadata.display_variable_id || responseData.metadata.variable_id
+          );
+          
+          // Set the active map data to display the map
+          setActiveMapData({
+            type: 'map',
+            geojsonData: enrichedGeoJson,
+            variableId: responseData.metadata.display_variable_id || responseData.metadata.variable_id,
+            variableLabels: responseData.metadata.variable_labels || {},
+            metadata: responseData.metadata,
+            mapCenter: getMapCenter(geoLevel, responseData.metadata.state_name),
+            mapZoom: geoLevel === 'county' ? 6 : 4
+          });
+          
+          // Also add a text message about the map
+          const aiMessage = { 
+            sender: 'ai', 
+            text: responseData.summary || `Displaying ${geoLevel}-level map for ${responseData.metadata.variable_id}` 
+          };
+          setMessages((prevMessages) => [...prevMessages, aiMessage]);
         }
-        
-        if (!baseGeoJson) {
-          throw new Error(`GeoJSON data not available for ${geoLevel} level`);
-        }
-        
-        // Merge the demographic data with GeoJSON
-        const enrichedGeoJson = mergeData(
-          baseGeoJson,
-          responseData.data,
-          geoLevel,
-          responseData.metadata.display_variable_id || responseData.metadata.variable_id
-        );
-        
-        // Set the active map data to display the map
-        setActiveMapData({
-          geojsonData: enrichedGeoJson,
-          variableId: responseData.metadata.display_variable_id || responseData.metadata.variable_id,
-          variableLabels: responseData.metadata.variable_labels || {},
-          metadata: responseData.metadata,
-          mapCenter: getMapCenter(geoLevel, responseData.metadata.state_name),
-          mapZoom: geoLevel === 'county' ? 6 : 4
-        });
-        
-        // Also add a text message about the map
-        const aiMessage = { 
-          sender: 'ai', 
-          text: responseData.summary || `Displaying ${geoLevel}-level map for ${responseData.metadata.variable_id}` 
-        };
-        setMessages((prevMessages) => [...prevMessages, aiMessage]);
         
       } else {
         // Regular text response
@@ -497,20 +515,25 @@ function App() {
 
       {/* Phase 3: Map display area */}
       {activeMapData && (
-        <div className="map-container">
-          <div className="map-header">
+        <div className="visualization-container">
+          <div className="visualization-header">
             <button onClick={() => setActiveMapData(null)} className="back-button">
               ← Back to Chat
             </button>
-            <h3>Census Data Map</h3>
+            <h3>{activeMapData.type === 'dashboard' ? 'Census Data Dashboard' : 'Census Data Map'}</h3>
           </div>
-          <MapDisplay
-            geojsonData={activeMapData.geojsonData}
-            variableId={activeMapData.variableId}
-            variableLabels={activeMapData.variableLabels}
-            mapCenter={activeMapData.mapCenter}
-            mapZoom={activeMapData.mapZoom}
-          />
+          
+          {activeMapData.type === 'dashboard' ? (
+            <Dashboard dashboardData={activeMapData.dashboardData} />
+          ) : (
+            <MapDisplay
+              geojsonData={activeMapData.geojsonData}
+              variableId={activeMapData.variableId}
+              variableLabels={activeMapData.variableLabels}
+              mapCenter={activeMapData.mapCenter}
+              mapZoom={activeMapData.mapZoom}
+            />
+          )}
         </div>
       )}
     </div>
