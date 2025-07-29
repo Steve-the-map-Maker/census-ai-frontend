@@ -176,6 +176,13 @@ function App() {
 
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
+  // Debug logging for environment
+  console.log('Frontend Environment Debug:');
+  console.log('VITE_ENV:', import.meta.env.VITE_ENV);
+  console.log('VITE_BACKEND_URL:', import.meta.env.VITE_BACKEND_URL);
+  console.log('Computed backendUrl:', backendUrl);
+  console.log('Environment mode:', import.meta.env.MODE);
+
   // Phase 3: Load GeoJSON files on component mount
   useEffect(() => {
     // Warm up the backend when the component mounts
