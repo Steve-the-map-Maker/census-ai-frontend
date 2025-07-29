@@ -31,6 +31,41 @@ function ChartsPanel({ charts, variableLabels }) {
     return [value.toFixed(2), name];
   };
 
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (active && payload && payload.length) {
+      const data = payload[0];
+      const value = data.value;
+      const variableName = data.name;
+      const color = data.fill || data.color || '#667eea'; // Use the bar's fill color
+      
+      let formattedValue;
+      if (variableName && (variableName.includes('%') || variableName.includes('Rate') || variableName.includes('Percentage'))) {
+        formattedValue = `${value.toFixed(1)}%`;
+      } else if (Math.abs(value) >= 1000) {
+        formattedValue = value.toLocaleString();
+      } else {
+        formattedValue = value.toFixed(2);
+      }
+
+      return (
+        <div style={{
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          border: '1px solid #ddd',
+          borderRadius: '8px',
+          padding: '12px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          fontSize: '13px'
+        }}>
+          <p style={{ margin: '0 0 4px 0', fontWeight: 'bold', color: '#333' }}>{label}</p>
+          <p style={{ margin: 0, color: color }}>
+            <span style={{ fontWeight: 'bold' }}>{variableName}:</span> {formattedValue}
+          </p>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <div className="charts-panel">
       <h3>📊 Charts</h3>
@@ -41,15 +76,17 @@ function ChartsPanel({ charts, variableLabels }) {
           return (
             <div key={index} className="chart-container">
               <h4>{chart.title}</h4>
-              <ResponsiveContainer width="100%" height={350}>
-                <BarChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+              <ResponsiveContainer width="100%" height={380}>
+                <BarChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
                   <XAxis 
                     dataKey="name" 
-                    angle={-45}
+                    angle={-35}
                     textAnchor="end"
-                    height={80}
-                    fontSize={11}
+                    height={100}
+                    fontSize={10}
                     stroke="#666"
+                    interval={0}
+                    tick={{ fontSize: 10, fill: '#555' }}
                   />
                   <YAxis 
                     tickFormatter={(value) => {
@@ -60,18 +97,12 @@ function ChartsPanel({ charts, variableLabels }) {
                       }
                       return value.toString();
                     }}
-                    fontSize={11}
+                    fontSize={10}
                     stroke="#666"
+                    tick={{ fontSize: 10, fill: '#555' }}
                   />
                   <Tooltip 
-                    formatter={formatTooltipValue}
-                    labelStyle={{ color: '#333', fontWeight: 'bold' }}
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                      border: '1px solid #ddd',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)'
-                    }}
+                    content={<CustomTooltip />}
                   />
                   <Legend />
                   <Bar 
