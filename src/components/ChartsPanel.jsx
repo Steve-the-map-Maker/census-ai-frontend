@@ -1,4 +1,4 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid } from 'recharts';
 
 function ChartsPanel({ charts, variableLabels }) {
   if (!charts || charts.length === 0) {
@@ -72,14 +72,14 @@ function ChartsPanel({ charts, variableLabels }) {
       {charts.map((chart, index) => {
         if (chart.chart_type === 'bar_chart') {
           const variableName = variableLabels[chart.variable_id] || chart.variable_id;
-          
+
           return (
             <div key={index} className="chart-container">
               <h4>{chart.title}</h4>
               <ResponsiveContainer width="100%" height={380}>
                 <BarChart data={chart.data} margin={{ top: 20, right: 30, left: 20, bottom: 100 }}>
-                  <XAxis 
-                    dataKey="name" 
+                  <XAxis
+                    dataKey="name"
                     angle={-35}
                     textAnchor="end"
                     height={100}
@@ -88,7 +88,7 @@ function ChartsPanel({ charts, variableLabels }) {
                     interval={0}
                     tick={{ fontSize: 10, fill: '#555' }}
                   />
-                  <YAxis 
+                  <YAxis
                     tickFormatter={(value) => {
                       if (Math.abs(value) >= 1000000) {
                         return `${(value / 1000000).toFixed(1)}M`;
@@ -101,15 +101,9 @@ function ChartsPanel({ charts, variableLabels }) {
                     stroke="#666"
                     tick={{ fontSize: 10, fill: '#555' }}
                   />
-                  <Tooltip 
-                    content={<CustomTooltip />}
-                  />
+                  <Tooltip content={<CustomTooltip />} />
                   <Legend />
-                  <Bar 
-                    dataKey="value" 
-                    name={variableName}
-                    radius={[6, 6, 0, 0]}
-                  >
+                  <Bar dataKey="value" name={variableName} radius={[6, 6, 0, 0]}>
                     {chart.data.map((entry, idx) => (
                       <Cell key={`cell-${idx}`} fill={colorPalette[idx % colorPalette.length]} />
                     ))}
@@ -119,7 +113,79 @@ function ChartsPanel({ charts, variableLabels }) {
             </div>
           );
         }
-        
+
+        if (chart.chart_type === 'line_chart') {
+          const years = new Set();
+          chart.series.forEach((series) => {
+            series.values.forEach((point) => {
+              if (point.year !== undefined && point.year !== null) {
+                years.add(Number(point.year));
+              }
+            });
+          });
+
+          const sortedYears = Array.from(years).sort((a, b) => a - b);
+          const lineData = sortedYears.map((year) => {
+            const row = { year };
+            chart.series.forEach((series) => {
+              const match = series.values.find((point) => Number(point.year) === year);
+              row[series.name] = match ? match.value : null;
+            });
+            return row;
+          });
+
+          const formatLineValue = (value, name) => {
+            if (value === null || value === undefined) {
+              return ['N/A', name];
+            }
+            if (Math.abs(value) >= 1000000) {
+              return [`${(value / 1000000).toFixed(1)}M`, name];
+            }
+            if (Math.abs(value) >= 1000) {
+              return [`${(value / 1000).toFixed(1)}K`, name];
+            }
+            return [value.toFixed(2), name];
+          };
+
+          return (
+            <div key={index} className="chart-container">
+              <h4>{chart.title}</h4>
+              <ResponsiveContainer width="100%" height={380}>
+                <LineChart data={lineData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="year" stroke="#666" tick={{ fontSize: 10, fill: '#555' }} />
+                  <YAxis
+                    stroke="#666"
+                    tick={{ fontSize: 10, fill: '#555' }}
+                    tickFormatter={(value) => {
+                      if (Math.abs(value) >= 1000000) {
+                        return `${(value / 1000000).toFixed(1)}M`;
+                      }
+                      if (Math.abs(value) >= 1000) {
+                        return `${(value / 1000).toFixed(1)}K`;
+                      }
+                      return value;
+                    }}
+                  />
+                  <Tooltip formatter={formatLineValue} />
+                  <Legend />
+                  {chart.series.map((series, seriesIndex) => (
+                    <Line
+                      key={series.geography_id || `${series.name}-${seriesIndex}`}
+                      type="monotone"
+                      dataKey={series.name}
+                      stroke={colorPalette[seriesIndex % colorPalette.length]}
+                      strokeWidth={2}
+                      dot={false}
+                      activeDot={{ r: 6 }}
+                    />
+                  ))}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          );
+        }
+
         return (
           <div key={index} className="chart-container">
             <p>Chart type "{chart.chart_type}" not supported yet.</p>

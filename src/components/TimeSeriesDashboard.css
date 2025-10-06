@@ -1,0 +1,255 @@
+.ts-dashboard {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #f4f6fb;
+}
+
+.ts-header {
+  padding: 20px 24px;
+  background: linear-gradient(135deg, #00c6ff 0%, #0072ff 100%);
+  color: white;
+  text-align: center;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+}
+
+.ts-header h2 {
+  margin: 0 0 8px 0;
+  font-size: 1.9rem;
+  font-weight: 600;
+}
+
+.ts-header p {
+  margin: 0 auto;
+  max-width: 720px;
+  line-height: 1.4;
+  opacity: 0.95;
+}
+
+.ts-subtitle {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+  font-weight: 600;
+  opacity: 0.85;
+}
+
+.ts-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  padding: 16px 24px;
+  background: white;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.ts-controls button {
+  border: none;
+  background: #667eea;
+  color: white;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.ts-controls button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.ts-controls button:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(102, 126, 234, 0.35);
+}
+
+.ts-slider {
+  flex: 1;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.ts-slider label {
+  font-weight: 600;
+  color: #333;
+}
+
+.ts-slider input[type="range"] {
+  width: 100%;
+}
+
+.ts-slider-placeholder {
+  padding: 12px;
+  background: #f7f7f7;
+  color: #666;
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+
+.ts-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
+  gap: 18px;
+  padding: 18px 24px;
+}
+
+.ts-map {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.ts-map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: linear-gradient(120deg, rgba(102, 126, 234, 0.18), rgba(118, 75, 162, 0.18));
+}
+
+.ts-map-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #333;
+}
+
+.ts-map-header span {
+  font-weight: 600;
+  color: #555;
+}
+
+.ts-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ts-metrics,
+.ts-charts,
+.ts-insights {
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  padding: 18px;
+}
+
+.ts-metrics h3,
+.ts-charts h3,
+.ts-insights h3 {
+  margin: 0 0 12px 0;
+  color: #333;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.ts-metric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.ts-metric-grid article {
+  background: linear-gradient(160deg, rgba(102, 126, 234, 0.12), rgba(118, 75, 162, 0.12));
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ts-metric-grid h4 {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #444;
+  font-weight: 600;
+}
+
+.ts-metric-value {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #2c3e50;
+}
+
+.ts-metric-geo {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.ts-warning {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 185, 0, 0.12);
+  color: #8a6d3b;
+  font-size: 0.9rem;
+}
+
+.ts-insights ul {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.ts-insights li {
+  color: #555;
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .ts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ts-sidebar {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .ts-metrics,
+  .ts-charts,
+  .ts-insights {
+    flex: 1 1 320px;
+  }
+}
+
+@media (max-width: 768px) {
+  .ts-header h2 {
+    font-size: 1.6rem;
+  }
+
+  .ts-controls {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .ts-controls button {
+    width: 36px;
+    height: 36px;
+  }
+
+  .ts-map-header {
+    flex-direction: column;
+    gap: 6px;
+    align-items: flex-start;
+  }
+}

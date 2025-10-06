@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import axios from 'axios';
 import MapDisplay from './components/MapDisplay';
 import Dashboard from './components/Dashboard';
+import TimeSeriesDashboard from './components/TimeSeriesDashboard';
 import './App.css'; // We will create this file for styles
 
 // Help component
@@ -270,7 +271,7 @@ function App() {
       const responseData = response.data;
       
       // Phase 7: Check if the response contains dashboard data or map data
-      if ((responseData.type === 'dashboard_data' || responseData.type === 'map') && responseData.data && responseData.metadata) {
+      if ((responseData.type === 'dashboard_data' || responseData.type === 'map' || responseData.type === 'time_series_dashboard') && responseData.data && responseData.metadata) {
         console.log('Dashboard/Map response received:', responseData);
         
         // For dashboard_data, we use the new Dashboard component
@@ -284,6 +285,17 @@ function App() {
           const aiMessage = { 
             sender: 'ai', 
             text: responseData.summary_text || `Created dashboard for ${responseData.metadata.geography_level}-level analysis` 
+          };
+          setMessages((prevMessages) => [...prevMessages, aiMessage]);
+        } else if (responseData.type === 'time_series_dashboard') {
+          setActiveMapData({
+            type: 'time_series',
+            dashboardData: responseData
+          });
+
+          const aiMessage = {
+            sender: 'ai',
+            text: responseData.summary_text || 'Generated time-series dashboard.'
           };
           setMessages((prevMessages) => [...prevMessages, aiMessage]);
         } else {
@@ -530,9 +542,13 @@ function App() {
             <h3>{activeMapData.type === 'dashboard' ? 'Census Data Dashboard' : 'Census Data Map'}</h3>
           </div>
           
-          {activeMapData.type === 'dashboard' ? (
+          {activeMapData.type === 'dashboard' && (
             <Dashboard dashboardData={activeMapData.dashboardData} />
-          ) : (
+          )}
+          {activeMapData.type === 'time_series' && (
+            <TimeSeriesDashboard dashboardData={activeMapData.dashboardData} />
+          )}
+          {activeMapData.type === 'map' && (
             <MapDisplay
               geojsonData={activeMapData.geojsonData}
               variableId={activeMapData.variableId}
