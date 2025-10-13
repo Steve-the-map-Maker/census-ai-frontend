@@ -13,6 +13,7 @@
   color: white;
   text-align: center;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  position: relative;
 }
 
 .ts-header h2 {
@@ -35,6 +36,47 @@
   justify-content: center;
   font-weight: 600;
   opacity: 0.85;
+}
+
+.ts-back-button {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #fff;
+  padding: 8px 14px;
+  border-radius: 24px;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.ts-back-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: translateY(-1px);
+}
+
+.ts-back-button:active {
+  transform: translateY(0);
+}
+
+@media (max-width: 768px) {
+  .ts-back-button {
+    position: static;
+    margin-bottom: 12px;
+  }
+
+  .ts-header {
+    text-align: left;
+    padding-top: 24px;
+  }
+
+  .ts-subtitle {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 .ts-controls {
@@ -140,8 +182,8 @@
   gap: 16px;
 }
 
+.ts-summary,
 .ts-metrics,
-.ts-charts,
 .ts-insights {
   background: white;
   border-radius: 14px;
@@ -151,6 +193,13 @@
 
 .ts-metrics h3,
 .ts-charts h3,
+.ts-summary h3 {
+  margin: 0 0 var(--spacing-4) 0;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+}
+
 .ts-insights h3 {
   margin: 0 0 12px 0;
   color: #333;
@@ -225,6 +274,7 @@
     flex-wrap: wrap;
   }
 
+  .ts-summary,
   .ts-metrics,
   .ts-charts,
   .ts-insights {

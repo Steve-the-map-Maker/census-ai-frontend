@@ -33,6 +33,7 @@ function Dashboard({ dashboardData }) {
             display_variable_id={selectedVariableId}
             variable_labels={dashboardData.metadata.variable_labels}
             geography_level={dashboardData.metadata.geography_level}
+            metadata={dashboardData.metadata}
           />
         </div>
         

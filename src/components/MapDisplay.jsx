@@ -3,18 +3,90 @@ import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
 import chroma from 'chroma-js';
 import 'leaflet/dist/leaflet.css';
 import './MapDisplay.css';
+import { DEFAULT_US_CENTER, getStateCenter, getStateCenterByFips, getStateFipsFromName } from '../utils/geography';
 
-function MapDisplay({ 
-  data, 
-  display_variable_id, 
-  variable_labels = {}, 
+function MapDisplay({
+  data,
+  display_variable_id,
+  variable_labels = {},
   geography_level,
-  mapCenter = [39.8283, -98.5795], 
-  mapZoom = 4 
+  metadata = {},
+  mapCenter,
+  mapZoom,
 }) {
   const [geoData, setGeoData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+
+  const focusStateName = metadata?.state_name || metadata?.stateName || null;
+  const focusStateFips = useMemo(() => {
+    if (metadata?.state_fips) {
+      return String(metadata.state_fips).padStart(2, '0');
+    }
+    if (focusStateName) {
+      const fipsFromName = getStateFipsFromName(focusStateName);
+      if (fipsFromName) {
+        return fipsFromName;
+      }
+    }
+    if (geography_level === 'county' && Array.isArray(data)) {
+      const matchingRow = data.find((row) => row?.state !== undefined && row?.state !== null);
+      if (matchingRow && matchingRow.state !== undefined && matchingRow.state !== null) {
+        return String(matchingRow.state).padStart(2, '0');
+      }
+    }
+    return null;
+  }, [metadata, focusStateName, data, geography_level]);
+
+  const filteredData = useMemo(() => {
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    if (geography_level === 'county' && focusStateFips) {
+      return data.filter((row) => String(row?.state).padStart(2, '0') === focusStateFips);
+    }
+    return data;
+  }, [data, geography_level, focusStateFips]);
   
+  const computedCenter = useMemo(() => {
+    if (Array.isArray(mapCenter) && mapCenter.length === 2) {
+      return mapCenter;
+    }
+    if (geography_level === 'county') {
+      if (focusStateName) {
+        return getStateCenter(focusStateName);
+      }
+      if (focusStateFips) {
+        const centerFromFips = getStateCenterByFips(focusStateFips);
+        if (centerFromFips) {
+          return centerFromFips;
+        }
+      }
+    }
+    if (geography_level === 'state' && focusStateName) {
+      return getStateCenter(focusStateName);
+    }
+    if (geography_level === 'state' && focusStateFips) {
+      const centerFromFips = getStateCenterByFips(focusStateFips);
+      if (centerFromFips) {
+        return centerFromFips;
+      }
+    }
+    return DEFAULT_US_CENTER;
+  }, [mapCenter, geography_level, focusStateName, focusStateFips]);
+
+  const computedZoom = useMemo(() => {
+    if (typeof mapZoom === 'number') {
+      return mapZoom;
+    }
+    if (geography_level === 'county') {
+      return 6;
+    }
+    if (geography_level === 'state' && (focusStateName || focusStateFips)) {
+      return 6;
+    }
+    return 4;
+  }, [mapZoom, geography_level, focusStateName, focusStateFips]);
+
   // Load GeoJSON data
   useEffect(() => {
     const loadGeoData = async () => {
@@ -55,12 +127,12 @@ function MapDisplay({
   
   // Merge demographic data with GeoJSON
   const enrichedGeoJson = useMemo(() => {
-    if (!geoData || !data || !display_variable_id) {
+    if (!geoData || !filteredData || !display_variable_id) {
       return null;
     }
     
     console.log('Merging data with GeoJSON', { 
-      demographicDataCount: data.length, 
+      demographicDataCount: filteredData.length,
       geoFeaturesCount: geoData.features.length,
       displayVariable: display_variable_id 
     });
@@ -68,23 +140,49 @@ function MapDisplay({
     // Create a map for fast lookup of demographic data
     const dataMap = new Map();
     
-    data.forEach(item => {
+    filteredData.forEach(item => {
       let key;
       if (geography_level === 'state') {
-        key = item.state; // Use state FIPS code
+        if (item?.state !== undefined && item?.state !== null) {
+          key = String(item.state).padStart(2, '0');
+        }
       } else if (geography_level === 'county') {
         // Ensure proper padding for county FIPS codes
-        const stateFips = item.state.padStart(2, '0');
-        const countyFips = item.county.padStart(3, '0');
-        key = `${stateFips}${countyFips}`; // Combine state and county FIPS
+        if (item?.state !== undefined && item?.county !== undefined) {
+          const stateFips = String(item.state).padStart(2, '0');
+          const countyFips = String(item.county).padStart(3, '0');
+          key = `${stateFips}${countyFips}`; // Combine state and county FIPS
+        }
       }
       if (key) {
         dataMap.set(key, item);
       }
     });
     
+    // Optionally filter GeoJSON features down to the focus state for county-level views
+    const baseFeatures = Array.isArray(geoData.features) ? geoData.features : [];
+    const shouldRestrictToState = focusStateFips && (
+      geography_level === 'county' ||
+      (geography_level === 'state' && filteredData.length > 0 && filteredData.length <= 5)
+    );
+
+    const filteredFeatures = shouldRestrictToState
+      ? baseFeatures.filter((feature) => {
+          const stateFp = feature.properties.STATEFP || feature.properties.STATE;
+          return stateFp && String(stateFp).padStart(2, '0') === focusStateFips;
+        })
+      : baseFeatures;
+
+    if (filteredFeatures.length === 0) {
+      return null;
+    }
+
     // Deep copy the GeoJSON to avoid mutating the original
-    const enrichedGeoJson = JSON.parse(JSON.stringify(geoData));
+    const { features: _originalFeatures, ...rest } = geoData;
+    const enrichedGeoJson = {
+      ...rest,
+      features: filteredFeatures.map((feature) => JSON.parse(JSON.stringify(feature))),
+    };
     
     // Merge data into GeoJSON features
     enrichedGeoJson.features.forEach((feature) => {
@@ -92,14 +190,18 @@ function MapDisplay({
       
       if (geography_level === 'state') {
         // For states, use the STATEFP or STATE property
-        lookupKey = feature.properties.STATEFP || feature.properties.STATE;
+        const stateProp = feature.properties.STATEFP || feature.properties.STATE;
+        if (stateProp !== undefined && stateProp !== null) {
+          lookupKey = String(stateProp).padStart(2, '0');
+        }
       } else if (geography_level === 'county') {
         // For counties, combine state and county FIPS codes
         const stateFp = feature.properties.STATEFP || feature.properties.STATE;
         const countyFp = feature.properties.COUNTYFP || feature.properties.COUNTY;
         if (stateFp && countyFp) {
-          const paddedCounty = countyFp.padStart(3, '0');
-          lookupKey = `${stateFp}${paddedCounty}`;
+          const paddedState = String(stateFp).padStart(2, '0');
+          const paddedCounty = String(countyFp).padStart(3, '0');
+          lookupKey = `${paddedState}${paddedCounty}`;
         }
       }
       
@@ -122,7 +224,7 @@ function MapDisplay({
     });
     
     return enrichedGeoJson;
-  }, [geoData, data, display_variable_id, geography_level]);
+  }, [geoData, filteredData, display_variable_id, geography_level, focusStateFips]);
   
   if (isLoading) {
     return (
@@ -240,11 +342,6 @@ function MapDisplay({
   };
   
   // Determine appropriate zoom and center based on geography level
-  const mapSettings = {
-    center: geography_level === 'county' ? mapCenter : [39.8283, -98.5795],
-    zoom: geography_level === 'county' ? Math.max(mapZoom, 6) : 4
-  };
-  
   return (
     <div className="map-display">
       <div className="map-header">
@@ -259,8 +356,8 @@ function MapDisplay({
       </div>
       
       <MapContainer 
-        center={mapSettings.center} 
-        zoom={mapSettings.zoom} 
+        center={computedCenter} 
+        zoom={computedZoom} 
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >

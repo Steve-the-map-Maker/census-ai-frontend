@@ -1,6 +1,6 @@
-import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid, ReferenceLine } from 'recharts';
 
-function ChartsPanel({ charts, variableLabels }) {
+function ChartsPanel({ charts, variableLabels, currentYear = null }) {
   if (!charts || charts.length === 0) {
     return (
       <div className="charts-panel">
@@ -169,6 +169,15 @@ function ChartsPanel({ charts, variableLabels }) {
                   />
                   <Tooltip formatter={formatLineValue} />
                   <Legend />
+                  {currentYear !== null && currentYear !== undefined && (
+                    <ReferenceLine
+                      x={Number(currentYear)}
+                      stroke="#f97316"
+                      strokeDasharray="4 4"
+                      strokeWidth={2}
+                      label={{ value: `${currentYear}`, fill: '#f97316', position: 'top' }}
+                    />
+                  )}
                   {chart.series.map((series, seriesIndex) => (
                     <Line
                       key={series.geography_id || `${series.name}-${seriesIndex}`}
@@ -177,7 +186,7 @@ function ChartsPanel({ charts, variableLabels }) {
                       stroke={colorPalette[seriesIndex % colorPalette.length]}
                       strokeWidth={2}
                       dot={false}
-                      activeDot={{ r: 6 }}
+                      activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f172a' }}
                     />
                   ))}
                 </LineChart>

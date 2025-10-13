@@ -4,6 +4,8 @@ import MapDisplay from './components/MapDisplay';
 import Dashboard from './components/Dashboard';
 import TimeSeriesDashboard from './components/TimeSeriesDashboard';
 import './App.css'; // We will create this file for styles
+import { deriveAvailableYears, resolveDefaultYear } from './utils/timeSeries';
+import { getStateCenter, DEFAULT_US_CENTER } from './utils/geography';
 
 // Help component
 function HelpModal({ isOpen, onClose }) {
@@ -83,78 +85,30 @@ function HelpModal({ isOpen, onClose }) {
   );
 }
 
-// Phase 3: Utility function to merge demographic data with GeoJSON
-function mergeData(geoJson, demographicData, geoLevel, variableId) {
-  console.log('Merging data:', { geoLevel, variableId, demographicDataCount: demographicData.length });
-  console.log('Sample demographic data item:', demographicData[0]);
-  console.log('Sample GeoJSON feature properties:', geoJson.features[0]?.properties);
-  
-  // Create a map for fast lookup of demographic data
-  const dataMap = new Map();
-  
-  demographicData.forEach(item => {
-    let key;
-    if (geoLevel === 'state') {
-      key = item.state; // Use state FIPS code
-    } else if (geoLevel === 'county') {
-      // Ensure proper padding for county FIPS codes
-      const stateFips = item.state.padStart(2, '0');
-      const countyFips = item.county.padStart(3, '0');
-      key = `${stateFips}${countyFips}`; // Combine state and county FIPS
-    }
-    if (key) {
-      dataMap.set(key, item);
-      console.log(`Added to dataMap: ${key} ->`, item);
-    }
-  });
-  
-  console.log('DataMap size:', dataMap.size);
-  
-  // Deep copy the GeoJSON to avoid mutating the original
-  const enrichedGeoJson = JSON.parse(JSON.stringify(geoJson));
-  
-  // Merge data into GeoJSON features
-  let matchedCount = 0;
-  enrichedGeoJson.features.forEach((feature, index) => {
-    let lookupKey;
-    
-    if (geoLevel === 'state') {
-      // For states, use the STATEFP or STATE property (different GeoJSON files use different names)
-      lookupKey = feature.properties.STATEFP || feature.properties.STATE;
-    } else if (geoLevel === 'county') {
-      // For counties, combine state and county FIPS codes
-      // Handle different GeoJSON property names
-      const stateFp = feature.properties.STATEFP || feature.properties.STATE;
-      const countyFp = feature.properties.COUNTYFP || feature.properties.COUNTY;
-      if (stateFp && countyFp) {
-        // Ensure we pad county FIPS to 3 digits if needed
-        const paddedCounty = countyFp.padStart(3, '0');
-        lookupKey = `${stateFp}${paddedCounty}`;
-      }
-    }
-    
-    if (index < 3) console.log(`Feature ${index} lookupKey: ${lookupKey}, properties:`, feature.properties);
-    
-    if (lookupKey && dataMap.has(lookupKey)) {
-      const demographicItem = dataMap.get(lookupKey);
-      // Add all demographic data to the feature properties
-      Object.keys(demographicItem).forEach(key => {
-        if (key !== 'state' && key !== 'county') {
-          feature.properties[key] = demographicItem[key];
-        }
-      });
-      matchedCount++;
-      if (index < 3) console.log(`Matched feature ${index}:`, feature.properties);
-    } else {
-      // Set null values for features without data
-      feature.properties[variableId] = null;
-      if (index < 3) console.log(`No match for feature ${index} with key: ${lookupKey}`);
-    }
-  });
-  
-  console.log(`Data merge completed. Matched ${matchedCount}/${enrichedGeoJson.features.length} features`);
-  console.log('Sample merged feature:', enrichedGeoJson.features[0]);
-  return enrichedGeoJson;
+function buildConversationContext({
+  previousQuery,
+  responsePayload,
+  currentYear,
+  availableYears,
+  activeFilters,
+}) {
+  if (!responsePayload || typeof responsePayload !== 'object') {
+    return previousQuery ? { previous_query: previousQuery } : null;
+  }
+
+  const metadata = responsePayload.metadata || {};
+
+  return {
+    previous_query: previousQuery,
+    dashboard_summary: responsePayload.summary_text || metadata.summary_text || '',
+    current_year: currentYear ?? metadata.active_year ?? null,
+    available_years: Array.isArray(availableYears) ? availableYears : metadata.years_available || [],
+    active_filters: activeFilters || metadata.applied_filters || [],
+    raw_payload: responsePayload,
+    derived_metrics: metadata.derived_metrics || [],
+    geography_level: metadata.geography_level,
+    display_variable_id: metadata.display_variable_id || metadata.primary_variable_code,
+  };
 }
 
 function App() {
@@ -162,6 +116,10 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [conversationContext, setConversationContext] = useState(null);
+  const [currentYear, setCurrentYear] = useState(null);
+  const [availableYears, setAvailableYears] = useState([]);
+  const [activeFilters, setActiveFilters] = useState([]);
   
   // Phase 3: GeoJSON data state management
   const [geoData, setGeoData] = useState({
@@ -267,7 +225,14 @@ function App() {
 
     try {
       // Make sure the backend URL is correct and accessible
-      const response = await axios.post(`${backendUrl}/ask_ai`, { query: userMessage.text });
+      const requestPayload = conversationContext
+        ? {
+            query: userMessage.text,
+            conversation_context: { ...conversationContext, current_query: userMessage.text },
+          }
+        : { query: userMessage.text };
+
+      const response = await axios.post(`${backendUrl}/ask_ai`, requestPayload);
       const responseData = response.data;
       
       // Phase 7: Check if the response contains dashboard data or map data
@@ -280,6 +245,19 @@ function App() {
             type: 'dashboard',
             dashboardData: responseData
           });
+          setCurrentYear(null);
+          setAvailableYears([]);
+          const appliedFilters = responseData.metadata?.applied_filters || [];
+          setActiveFilters(appliedFilters);
+          setConversationContext(
+            buildConversationContext({
+              previousQuery: userMessage.text,
+              responsePayload: responseData,
+              currentYear: null,
+              availableYears: [],
+              activeFilters: appliedFilters,
+            })
+          );
           
           // Add a text message about the dashboard
           const aiMessage = { 
@@ -288,10 +266,27 @@ function App() {
           };
           setMessages((prevMessages) => [...prevMessages, aiMessage]);
         } else if (responseData.type === 'time_series_dashboard') {
+          const years = deriveAvailableYears(responseData.metadata, responseData.data);
+          const metadataActiveYear = responseData.metadata?.active_year;
+          const defaultYear = metadataActiveYear ?? resolveDefaultYear(years, responseData.metadata);
+          setAvailableYears(years);
+          setCurrentYear(defaultYear);
           setActiveMapData({
             type: 'time_series',
             dashboardData: responseData
           });
+
+          const appliedFilters = responseData.metadata?.applied_filters || [];
+          setActiveFilters(appliedFilters);
+          setConversationContext(
+            buildConversationContext({
+              previousQuery: userMessage.text,
+              responsePayload: responseData,
+              currentYear: defaultYear,
+              availableYears: years,
+              activeFilters: appliedFilters,
+            })
+          );
 
           const aiMessage = {
             sender: 'ai',
@@ -317,23 +312,19 @@ function App() {
           }
           
           // Merge the demographic data with GeoJSON
-          const enrichedGeoJson = mergeData(
-            baseGeoJson,
-            responseData.data,
-            geoLevel,
-            responseData.metadata.display_variable_id || responseData.metadata.variable_id
-          );
-          
           // Set the active map data to display the map
           setActiveMapData({
             type: 'map',
-            geojsonData: enrichedGeoJson,
-            variableId: responseData.metadata.display_variable_id || responseData.metadata.variable_id,
+            data: responseData.data,
+            displayVariableId: responseData.metadata.display_variable_id || responseData.metadata.variable_id,
             variableLabels: responseData.metadata.variable_labels || {},
             metadata: responseData.metadata,
             mapCenter: getMapCenter(geoLevel, responseData.metadata.state_name),
             mapZoom: geoLevel === 'county' ? 6 : 4
           });
+          setCurrentYear(null);
+          setAvailableYears([]);
+          setActiveFilters(responseData.metadata?.applied_filters || []);
           
           // Also add a text message about the map
           const aiMessage = { 
@@ -341,12 +332,31 @@ function App() {
             text: responseData.summary || `Displaying ${geoLevel}-level map for ${responseData.metadata.variable_id}` 
           };
           setMessages((prevMessages) => [...prevMessages, aiMessage]);
+
+          setConversationContext(
+            buildConversationContext({
+              previousQuery: userMessage.text,
+              responsePayload: responseData,
+              currentYear: null,
+              availableYears: [],
+              activeFilters: [],
+            })
+          );
         }
         
       } else {
         // Regular text response
         const aiMessage = { sender: 'ai', text: responseData.response || responseData.summary || 'No response received' };
         setMessages((prevMessages) => [...prevMessages, aiMessage]);
+        setConversationContext((prevContext) =>
+          buildConversationContext({
+            previousQuery: userMessage.text,
+            responsePayload: prevContext?.raw_payload,
+            currentYear,
+            availableYears,
+            activeFilters,
+          })
+        );
       }
       
     } catch (error) {
@@ -358,72 +368,28 @@ function App() {
   };
 
   // Phase 3: Map center coordinates for different states
-  const STATE_CENTERS = {
-    'alabama': [32.3617, -86.2792],
-    'alaska': [64.0685, -152.2782],
-    'arizona': [34.2744, -111.2847],
-    'arkansas': [34.7519, -92.1313],
-    'california': [36.7783, -119.4179],
-    'colorado': [39.5501, -105.7821],
-    'connecticut': [41.6219, -72.7273],
-    'delaware': [38.9108, -75.5277],
-    'florida': [27.7663, -81.6868],
-    'georgia': [32.9866, -83.6487],
-    'hawaii': [21.1098, -157.5311],
-    'idaho': [44.2394, -114.5103],
-    'illinois': [40.3363, -89.0022],
-    'indiana': [39.8647, -86.2604],
-    'iowa': [42.0046, -93.2140],
-    'kansas': [38.5266, -96.7265],
-    'kentucky': [37.6690, -84.6701],
-    'louisiana': [31.1695, -91.8678],
-    'maine': [44.6939, -69.3819],
-    'maryland': [39.0639, -76.8021],
-    'massachusetts': [42.2373, -71.5314],
-    'michigan': [43.3266, -84.5361],
-    'minnesota': [45.7326, -93.9196],
-    'mississippi': [32.7673, -89.6812],
-    'missouri': [38.4623, -92.3020],
-    'montana': [47.0527, -110.2148],
-    'nebraska': [41.1289, -98.2883],
-    'nevada': [38.4199, -117.1219],
-    'new hampshire': [43.4525, -71.5639],
-    'new jersey': [40.3140, -74.5089],
-    'new mexico': [34.8405, -106.2485],
-    'new york': [42.9538, -75.5268],
-    'north carolina': [35.6411, -79.8431],
-    'north dakota': [47.5362, -99.7930],
-    'ohio': [40.3888, -82.7649],
-    'oklahoma': [35.5889, -96.9028],
-    'oregon': [44.5672, -122.1269],
-    'pennsylvania': [40.5773, -77.2640],
-    'rhode island': [41.6762, -71.5562],
-    'south carolina': [33.8191, -80.9066],
-    'south dakota': [44.2853, -99.4632],
-    'tennessee': [35.7449, -86.7489],
-    'texas': [31.0545, -97.5635],
-    'utah': [40.1135, -111.8535],
-    'vermont': [44.0407, -72.7093],
-    'virginia': [37.7693, -78.2057],
-    'washington': [47.3826, -121.0152],
-    'west virginia': [38.4680, -80.9696],
-    'wisconsin': [44.2619, -89.6179],
-    'wyoming': [42.7475, -107.2085]
-  };
-
-  // Utility function to get map center coordinates
   function getMapCenter(geoLevel, stateName) {
-    if (geoLevel === 'state') {
-      // For state-level maps, center on the US
-      return [39.8283, -98.5795];
-    } else if (geoLevel === 'county' && stateName) {
-      // For county-level maps, center on the specific state
-      const stateKey = stateName.toLowerCase();
-      return STATE_CENTERS[stateKey] || [39.8283, -98.5795]; // Fallback to US center
+    if (geoLevel === 'county' && stateName) {
+      return getStateCenter(stateName);
     }
-    // Default to US center
-    return [39.8283, -98.5795];
+    return DEFAULT_US_CENTER;
   }
+
+  const handleTimeSeriesYearChange = (year) => {
+    if (year === null || year === undefined || Number.isNaN(Number(year))) {
+      return;
+    }
+    const normalizedYear = Number(year);
+    setCurrentYear(normalizedYear);
+    setConversationContext((prev) =>
+      prev
+        ? {
+            ...prev,
+            current_year: normalizedYear,
+          }
+        : prev
+    );
+  };
 
   return (
     <div className="app-container">
@@ -546,13 +512,20 @@ function App() {
             <Dashboard dashboardData={activeMapData.dashboardData} />
           )}
           {activeMapData.type === 'time_series' && (
-            <TimeSeriesDashboard dashboardData={activeMapData.dashboardData} />
+            <TimeSeriesDashboard
+              dashboardData={activeMapData.dashboardData}
+              currentYear={currentYear}
+              onYearChange={handleTimeSeriesYearChange}
+              onBack={() => setActiveMapData(null)}
+            />
           )}
           {activeMapData.type === 'map' && (
             <MapDisplay
-              geojsonData={activeMapData.geojsonData}
-              variableId={activeMapData.variableId}
-              variableLabels={activeMapData.variableLabels}
+              data={activeMapData.data}
+              display_variable_id={activeMapData.displayVariableId}
+              variable_labels={activeMapData.variableLabels}
+              geography_level={activeMapData.metadata?.geography_level}
+              metadata={activeMapData.metadata}
               mapCenter={activeMapData.mapCenter}
               mapZoom={activeMapData.mapZoom}
             />

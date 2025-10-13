@@ -1,46 +1,9 @@
 import { useState, useMemo, useEffect } from 'react';
 import MapDisplay from './MapDisplay';
 import ChartsPanel from './ChartsPanel';
+import SummaryStatsPanel from './SummaryStatsPanel';
+import { deriveAvailableYears, resolveDefaultYear } from '../utils/timeSeries';
 import './TimeSeriesDashboard.css';
-
-function buildYearList(metadata, data) {
-  const yearSet = new Set();
-
-  if (Array.isArray(metadata?.years_available)) {
-    metadata.years_available.forEach((year) => {
-      const numericYear = Number(year);
-      if (!Number.isNaN(numericYear)) {
-        yearSet.add(numericYear);
-      }
-    });
-  }
-
-  if (yearSet.size === 0 && Array.isArray(metadata?.years_requested)) {
-    metadata.years_requested.forEach((year) => {
-      const numericYear = Number(year);
-      if (!Number.isNaN(numericYear)) {
-        yearSet.add(numericYear);
-      }
-    });
-  }
-
-  if (yearSet.size === 0 && Number.isInteger(metadata?.start_year) && Number.isInteger(metadata?.end_year)) {
-    for (let year = metadata.start_year; year <= metadata.end_year; year += 1) {
-      yearSet.add(year);
-    }
-  }
-
-  if (yearSet.size === 0 && Array.isArray(data)) {
-    data.forEach((row) => {
-      const numericYear = Number(row.year);
-      if (!Number.isNaN(numericYear)) {
-        yearSet.add(numericYear);
-      }
-    });
-  }
-
-  return Array.from(yearSet).sort((a, b) => a - b);
-}
 
 function formatNumber(value) {
   if (value === null || value === undefined || Number.isNaN(Number(value))) {
@@ -66,7 +29,45 @@ function formatPercent(value) {
   return `${Number(value).toFixed(1)}%`;
 }
 
-function TimeSeriesDashboard({ dashboardData }) {
+function computeSummaryStats(rows, variableId) {
+  if (!Array.isArray(rows) || !rows.length || !variableId) {
+    return null;
+  }
+
+  const numericValues = rows
+    .map((row) => Number(row?.[variableId]))
+    .filter((value) => !Number.isNaN(value));
+
+  if (!numericValues.length) {
+    return null;
+  }
+
+  const sortedValues = [...numericValues].sort((a, b) => a - b);
+  const mean = sortedValues.reduce((sum, value) => sum + value, 0) / sortedValues.length;
+  const mid = Math.floor(sortedValues.length / 2);
+  const median =
+    sortedValues.length % 2 === 0
+      ? (sortedValues[mid - 1] + sortedValues[mid]) / 2
+      : sortedValues[mid];
+
+  const minValue = Math.min(...sortedValues);
+  const maxValue = Math.max(...sortedValues);
+
+  const minRow = rows.find((row) => Number(row?.[variableId]) === minValue);
+  const maxRow = rows.find((row) => Number(row?.[variableId]) === maxValue);
+
+  return {
+    mean,
+    median,
+    min: minValue,
+    max: maxValue,
+    count: sortedValues.length,
+    min_entity_name: minRow?.NAME ?? 'N/A',
+    max_entity_name: maxRow?.NAME ?? 'N/A',
+  };
+}
+
+function TimeSeriesDashboard({ dashboardData, currentYear = null, onYearChange, onBack }) {
   const {
     summary_text: summaryText,
     data = [],
@@ -81,18 +82,56 @@ function TimeSeriesDashboard({ dashboardData }) {
   const variableLabels = metadata.variable_labels || {};
   const primaryVariableLabel = metadata.primary_variable_label || variableLabels[primaryVariableId] || primaryVariableId;
 
-  const years = useMemo(() => buildYearList(metadata, data), [metadata, data]);
-  const defaultYear = years.length > 0
-    ? years[years.length - 1]
-    : Number(metadata?.end_year) || Number(metadata?.start_year) || null;
+  const years = useMemo(() => deriveAvailableYears(metadata, data), [metadata, data]);
+  const defaultYear = resolveDefaultYear(years, metadata);
 
-  const [selectedYear, setSelectedYear] = useState(defaultYear);
+  const [internalYear, setInternalYear] = useState(currentYear ?? defaultYear);
 
   useEffect(() => {
-    if (years.length > 0 && !years.includes(selectedYear)) {
-      setSelectedYear(years[years.length - 1]);
+    if (currentYear !== null && currentYear !== undefined) {
+      setInternalYear(currentYear);
     }
-  }, [years, selectedYear]);
+  }, [currentYear]);
+
+  useEffect(() => {
+    if ((currentYear === null || currentYear === undefined) && defaultYear !== null) {
+      setInternalYear(defaultYear);
+    }
+  }, [defaultYear, currentYear]);
+
+  useEffect(() => {
+    if (years.length > 0) {
+      const normalized = internalYear ?? defaultYear ?? years[years.length - 1];
+      if (!years.includes(Number(normalized))) {
+        const fallback = years[years.length - 1];
+        if (onYearChange) {
+          onYearChange(fallback);
+        } else {
+          setInternalYear(fallback);
+        }
+      }
+    }
+  }, [years, internalYear, defaultYear, onYearChange]);
+
+  const selectedYear = useMemo(() => {
+    if (currentYear !== null && currentYear !== undefined) {
+      return Number(currentYear);
+    }
+    if (internalYear !== null && internalYear !== undefined) {
+      return Number(internalYear);
+    }
+    return defaultYear;
+  }, [currentYear, internalYear, defaultYear]);
+
+  const updateYear = (year) => {
+    if (!Number.isNaN(Number(year))) {
+      if (onYearChange) {
+        onYearChange(Number(year));
+      } else {
+        setInternalYear(Number(year));
+      }
+    }
+  };
 
   const filteredData = useMemo(() => {
     if (!selectedYear) {
@@ -103,13 +142,23 @@ function TimeSeriesDashboard({ dashboardData }) {
       .map((row) => ({ ...row }));
   }, [data, selectedYear]);
 
+  const computedSummaryStats = useMemo(
+    () => computeSummaryStats(filteredData, primaryVariableId),
+    [filteredData, primaryVariableId],
+  );
+
+  const summaryStatsPayload = useMemo(() => {
+    if (!computedSummaryStats || !primaryVariableId) {
+      return {};
+    }
+    return { [primaryVariableId]: computedSummaryStats };
+  }, [computedSummaryStats, primaryVariableId]);
+
   const missingYears = errors?.missing_years || [];
 
   const handleYearChange = (event) => {
     const nextYear = Number(event.target.value);
-    if (!Number.isNaN(nextYear)) {
-      setSelectedYear(nextYear);
-    }
+    updateYear(nextYear);
   };
 
   const handleStepYear = (direction) => {
@@ -118,12 +167,12 @@ function TimeSeriesDashboard({ dashboardData }) {
     }
     const currentIndex = years.indexOf(selectedYear);
     if (currentIndex === -1) {
-      setSelectedYear(years[years.length - 1]);
+      updateYear(years[years.length - 1]);
       return;
     }
     const nextIndex = currentIndex + direction;
     if (nextIndex >= 0 && nextIndex < years.length) {
-      setSelectedYear(years[nextIndex]);
+      updateYear(years[nextIndex]);
     }
   };
 
@@ -134,6 +183,11 @@ function TimeSeriesDashboard({ dashboardData }) {
   return (
     <div className="ts-dashboard">
       <div className="ts-header">
+        {onBack && (
+          <button type="button" className="ts-back-button" onClick={onBack}>
+            ← Back to Chat
+          </button>
+        )}
         <h2>📈 Time-Series Dashboard</h2>
         <p>{summaryText}</p>
         <div className="ts-subtitle">
@@ -159,7 +213,7 @@ function TimeSeriesDashboard({ dashboardData }) {
               min={years[0]}
               max={years[years.length - 1]}
               step={1}
-              value={selectedYear || years[0]}
+              value={selectedYear ?? years[0]}
               onChange={handleYearChange}
             />
           ) : (
@@ -182,14 +236,25 @@ function TimeSeriesDashboard({ dashboardData }) {
             {selectedYear && <span>Showing {selectedYear}</span>}
           </div>
           <MapDisplay
+            key={`${primaryVariableId}-${selectedYear}`}
             data={filteredData}
             display_variable_id={primaryVariableId}
             variable_labels={variableLabels}
             geography_level={metadata.geography_level}
+            metadata={metadata}
           />
         </div>
 
         <aside className="ts-sidebar">
+          <section className="ts-summary">
+            <SummaryStatsPanel
+              summaryStatistics={summaryStatsPayload}
+              variableLabels={variableLabels}
+              selectedVariableId={primaryVariableId}
+              dataRows={filteredData}
+            />
+          </section>
+
           <section className="ts-metrics">
             <h3>Key Changes {yearRange && yearRange.length === 2 && `(${yearRange[0]}–${yearRange[1]})`}</h3>
             <div className="ts-metric-grid">
@@ -212,7 +277,11 @@ function TimeSeriesDashboard({ dashboardData }) {
           </section>
 
           <section className="ts-charts">
-            <ChartsPanel charts={charts} variableLabels={variableLabels} />
+            <ChartsPanel
+              charts={charts}
+              variableLabels={variableLabels}
+              currentYear={selectedYear}
+            />
           </section>
 
           {insights && insights.length > 0 && (
