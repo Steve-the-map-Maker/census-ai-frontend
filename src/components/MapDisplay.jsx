@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { MapContainer, TileLayer, GeoJSON } from 'react-leaflet';
+import { MapContainer, TileLayer, GeoJSON, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import chroma from 'chroma-js';
 import 'leaflet/dist/leaflet.css';
 import './MapDisplay.css';
@@ -16,6 +17,19 @@ function MapDisplay({
 }) {
   const [geoData, setGeoData] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isFullScreen, setIsFullScreen] = useState(false);
+  const [legendCollapsed, setLegendCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (isFullScreen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+    return undefined;
+  }, [isFullScreen]);
 
   const focusStateName = metadata?.state_name || metadata?.stateName || null;
   const focusStateFips = useMemo(() => {
@@ -225,6 +239,17 @@ function MapDisplay({
     
     return enrichedGeoJson;
   }, [geoData, filteredData, display_variable_id, geography_level, focusStateFips]);
+
+  const dataBounds = useMemo(() => {
+    if (!enrichedGeoJson) return null;
+    try {
+      const layer = L.geoJSON(enrichedGeoJson);
+      return layer.getBounds();
+    } catch (error) {
+      console.warn('Unable to compute bounds for GeoJSON layer', error);
+      return null;
+    }
+  }, [enrichedGeoJson]);
   
   if (isLoading) {
     return (
@@ -340,38 +365,103 @@ function MapDisplay({
       }
     });
   };
+
+  function MapControls({ bounds, defaultCenter, defaultZoom, onToggleFullScreen }) {
+    const map = useMap();
+
+    const handleFitToData = () => {
+      if (bounds) {
+        map.fitBounds(bounds, { padding: [24, 24] });
+      }
+    };
+
+    const handleResetView = () => {
+      map.setView(defaultCenter, defaultZoom, { animate: true });
+    };
+
+    return (
+      <div className="map-toolbar">
+        <button
+          type="button"
+          className="map-toolbar-btn"
+          onClick={handleFitToData}
+          disabled={!bounds}
+        >
+          Fit to data
+        </button>
+        <button type="button" className="map-toolbar-btn" onClick={handleResetView}>
+          Reset view
+        </button>
+        <button type="button" className="map-toolbar-btn" onClick={onToggleFullScreen}>
+          {isFullScreen ? 'Exit full screen' : 'Full screen'}
+        </button>
+      </div>
+    );
+  }
   
   // Determine appropriate zoom and center based on geography level
   return (
-    <div className="map-display">
+    <div className={`map-display ${isFullScreen ? 'map-display--fullscreen' : ''}`}>
       <div className="map-header">
-        <h3>{variableLabel}</h3>
-        <div className="map-legend">
-          <span className="legend-label">Low</span>
-          <div className="legend-gradient" style={{
-            background: `linear-gradient(to right, ${colorScale(minValue).hex()}, ${colorScale(maxValue).hex()})`
-          }}></div>
-          <span className="legend-label">High</span>
+        <div>
+          <h3>{variableLabel}</h3>
+          {metadata?.state_name && (
+            <p className="map-subtitle">Focus: {metadata.state_name}</p>
+          )}
+        </div>
+        <button
+          className="legend-toggle"
+          type="button"
+          onClick={() => setLegendCollapsed((prev) => !prev)}
+        >
+          {legendCollapsed ? 'Show legend' : 'Hide legend'}
+        </button>
+      </div>
+
+      <div className="map-body">
+        {!legendCollapsed && (
+          <div className="map-legend-card">
+            <div className="map-legend">
+              <span className="legend-label">Low</span>
+              <div
+                className="legend-gradient"
+                style={{
+                  background: `linear-gradient(to right, ${colorScale(minValue).hex()}, ${colorScale(maxValue).hex()})`,
+                }}
+              ></div>
+              <span className="legend-label">High</span>
+            </div>
+            <p className="legend-note">Pinch to zoom • tap shapes for exact values</p>
+          </div>
+        )}
+
+        <div className="map-canvas">
+          <MapContainer
+            center={computedCenter}
+            zoom={computedZoom}
+            className="leaflet-map"
+            scrollWheelZoom
+            zoomControl={false}
+          >
+            <TileLayer
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            />
+            <GeoJSON
+              data={enrichedGeoJson}
+              style={style}
+              onEachFeature={onEachFeature}
+              key={display_variable_id} // Force re-render when variable changes
+            />
+            <MapControls
+              bounds={dataBounds}
+              defaultCenter={computedCenter}
+              defaultZoom={computedZoom}
+              onToggleFullScreen={() => setIsFullScreen((prev) => !prev)}
+            />
+          </MapContainer>
         </div>
       </div>
-      
-      <MapContainer 
-        center={computedCenter} 
-        zoom={computedZoom} 
-        style={{ height: '100%', width: '100%' }}
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <GeoJSON 
-          data={enrichedGeoJson} 
-          style={style}
-          onEachFeature={onEachFeature}
-          key={display_variable_id} // Force re-render when variable changes
-        />
-      </MapContainer>
     </div>
   );
 }

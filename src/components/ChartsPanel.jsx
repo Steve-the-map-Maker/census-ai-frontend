@@ -37,15 +37,7 @@ function ChartsPanel({ charts, variableLabels, currentYear = null }) {
       const value = data.value;
       const variableName = data.name;
       const color = data.fill || data.color || '#667eea'; // Use the bar's fill color
-      
-      let formattedValue;
-      if (variableName && (variableName.includes('%') || variableName.includes('Rate') || variableName.includes('Percentage'))) {
-        formattedValue = `${value.toFixed(1)}%`;
-      } else if (Math.abs(value) >= 1000) {
-        formattedValue = value.toLocaleString();
-      } else {
-        formattedValue = value.toFixed(2);
-      }
+      const [formattedValue] = formatTooltipValue(value, variableName);
 
       return (
         <div style={{

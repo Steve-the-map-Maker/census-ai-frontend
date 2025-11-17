@@ -1,11 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import axios from 'axios';
-import MapDisplay from './components/MapDisplay';
-import Dashboard from './components/Dashboard';
-import TimeSeriesDashboard from './components/TimeSeriesDashboard';
+import HomeLanding from './components/HomeLanding';
+import HelpAccordion from './components/HelpAccordion';
 import './App.css'; // We will create this file for styles
 import { deriveAvailableYears, resolveDefaultYear } from './utils/timeSeries';
 import { getStateCenter, DEFAULT_US_CENTER } from './utils/geography';
+
+// Lazy load heavy visualization components
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const MapDisplay = lazy(() => import('./components/MapDisplay'));
 
 // Help component
 function HelpModal({ isOpen, onClose }) {
@@ -85,6 +88,55 @@ function HelpModal({ isOpen, onClose }) {
   );
 }
 
+const CHAT_CHIPS = [
+  {
+    label: 'State population leaders',
+    prompt: 'Show population by state and highlight the fastest growing ones',
+  },
+  {
+    label: 'County drilldown',
+    prompt: 'Rank counties in Georgia by unemployment rate',
+  },
+  {
+    label: 'Education snapshot',
+    prompt: 'Which states have the highest bachelor degree attainment?',
+  },
+];
+
+const HELP_SECTIONS = [
+  {
+    id: 'shortcuts',
+    eyebrow: 'Shortcuts',
+    title: 'Popular comparisons',
+    body: 'Tap a shortcut to auto-fill the composer, then add your own twist.',
+    prompts: [
+      'Compare median income between coastal and inland states',
+      'Show poverty rate trend for Mississippi since 2010',
+      'Map places in Arizona with population over 50k',
+    ],
+  },
+  {
+    id: 'tips',
+    eyebrow: 'Tips',
+    title: 'Make the most of each answer',
+    list: [
+      'Specify the geography level (state, county, place) for precise data',
+      'Ask follow-up questions to refine filters or add derived metrics',
+      'Use natural language—“show me”, “rank”, “compare”, and “trend” all work',
+    ],
+  },
+  {
+    id: 'geographies',
+    eyebrow: 'Coverage',
+    title: 'Supported regions',
+    body: 'We currently support all 50 states + DC, with county-level detail nationwide and many major places.',
+    prompts: [
+      'Zoom into Texas counties for household income',
+      'Show New England states ranked by unemployment',
+    ],
+  },
+];
+
 function buildConversationContext({
   previousQuery,
   responsePayload,
@@ -120,6 +172,7 @@ function App() {
   const [currentYear, setCurrentYear] = useState(null);
   const [availableYears, setAvailableYears] = useState([]);
   const [activeFilters, setActiveFilters] = useState([]);
+  const [viewMode, setViewMode] = useState('home');
   
   // Phase 3: GeoJSON data state management
   const [geoData, setGeoData] = useState({
@@ -133,6 +186,9 @@ function App() {
   // Phase 3: Map display state
   const [activeMapData, setActiveMapData] = useState(null);
 
+  const textareaRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
   const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
   // Debug logging for environment
@@ -141,6 +197,29 @@ function App() {
   console.log('VITE_BACKEND_URL:', import.meta.env.VITE_BACKEND_URL);
   console.log('Computed backendUrl:', backendUrl);
   console.log('Environment mode:', import.meta.env.MODE);
+
+  const focusComposer = () => {
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const handleStartChat = () => {
+    setViewMode('chat');
+    focusComposer();
+  };
+
+  const handlePromptInsert = (prompt) => {
+    setInput(prompt);
+    setViewMode('chat');
+    focusComposer();
+  };
+
+  const handleBackToHome = () => {
+    setViewMode('home');
+  };
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages, isLoading]);
 
   // Phase 3: Load GeoJSON files on component mount
   useEffect(() => {
@@ -212,11 +291,13 @@ function App() {
     };
 
     loadGeoJSONData();
-  }, []); // Empty dependency array ensures this runs only once
+  }, [backendUrl]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!input.trim()) return;
+
+     setViewMode('chat');
 
     const userMessage = { sender: 'user', text: input };
     setMessages((prevMessages) => [...prevMessages, userMessage]);
@@ -418,83 +499,95 @@ function App() {
       )}
 
       {/* Main chat interface - only show when GeoJSON data is loaded */}
-      {geoData.isLoaded && !activeMapData && (
+      {geoData.isLoaded && !activeMapData && viewMode === 'home' && (
+        <HomeLanding onStartChat={handleStartChat} onSelectPrompt={handlePromptInsert} />
+      )}
+
+      {geoData.isLoaded && !activeMapData && viewMode === 'chat' && (
         <div className="chat-window">
-          <div className="messages-area">
-            <div className="welcome-message">
-              <div className="welcome-header">
-                <h2>🗺️ Census AI Visualizer</h2>
-                <button className="help-button" onClick={() => setShowHelp(true)}>
-                  ❓ Help & Examples
-                </button>
-              </div>
-              <p>Ask me about U.S. demographic data and I'll create interactive maps for you!</p>
-              
-              <div className="quick-examples">
-                <h3>✨ Try These Examples:</h3>
-                <div className="example-buttons">
-                  <button 
-                    className="example-button"
-                    onClick={() => setInput("Show population by state")}
-                  >
-                    📊 Population by State
-                  </button>
-                  <button 
-                    className="example-button"
-                    onClick={() => setInput("Which states have more men than women?")}
-                  >
-                    👥 Gender Comparison
-                  </button>
-                  <button 
-                    className="example-button"
-                    onClick={() => setInput("Map median household income by state")}
-                  >
-                    💰 Income by State
-                  </button>
-                  <button 
-                    className="example-button"
-                    onClick={() => setInput("Counties in California by population")}
-                  >
-                    🏘️ California Counties
-                  </button>
+          <header className="chat-header">
+            <div>
+              <p className="eyebrow">Conversational workspace</p>
+              <h2>Census AI Visualizer</h2>
+              <p className="chat-subtitle">Ask about states, counties, or places—no GIS jargon required.</p>
+            </div>
+            <div className="chat-header-actions">
+              <button type="button" className="btn ghost" onClick={handleBackToHome}>
+                Home
+              </button>
+              <button type="button" className="btn secondary" onClick={() => setShowHelp(true)}>
+                Help & Examples
+              </button>
+            </div>
+          </header>
+
+          <div className="chat-shell">
+            <div className="chat-scroll-region">
+              <section className="chat-intro-card">
+                <div>
+                  <h3>� Ready for a new insight?</h3>
+                  <p>Pick a quick idea or type anything you want to explore.</p>
                 </div>
-              </div>
-              
-              <div className="features-highlight">
-                <div className="feature">
-                  <span className="feature-icon">🗺️</span>
-                  <span>Interactive Maps</span>
+                <div className="chat-chip-row">
+                  {CHAT_CHIPS.map((chip) => (
+                    <button
+                      key={chip.label}
+                      type="button"
+                      className="pill"
+                      onClick={() => handlePromptInsert(chip.prompt)}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="feature">
-                  <span className="feature-icon">📈</span>
-                  <span>Comparative Analysis</span>
-                </div>
-                <div className="feature">
-                  <span className="feature-icon">🎯</span>
-                  <span>Natural Language Queries</span>
-                </div>
+              </section>
+
+              <HelpAccordion sections={HELP_SECTIONS} onSelectPrompt={handlePromptInsert} />
+
+              <div className="message-feed">
+                {messages.length === 0 && !isLoading && (
+                  <div className="empty-state">
+                    <h4>Start the conversation</h4>
+                    <p>
+                      Try “Show unemployment rate by county in Ohio” or ask for a time-series trend to watch it animate.
+                    </p>
+                  </div>
+                )}
+
+                {messages.map((msg, index) => (
+                  <div key={index} className={`message ${msg.sender}`}>
+                    <p>{msg.text}</p>
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div className="message ai typing-indicator">
+                    <p>AI is thinking...</p>
+                  </div>
+                )}
+                <span ref={messagesEndRef} aria-hidden="true" />
               </div>
             </div>
-            {messages.map((msg, index) => (
-              <div key={index} className={`message ${msg.sender}`}>
-                <p>{msg.text}</p>
+
+            <form onSubmit={handleSubmit} className="chat-composer">
+              <label htmlFor="chat-input" className="sr-only">
+                Ask a Census question
+              </label>
+              <textarea
+                id="chat-input"
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder="Ask about Census data maps - e.g., 'Show population by state'"
+                rows="3"
+              />
+              <div className="composer-actions">
+                <button type="submit" className="btn primary" disabled={isLoading}>
+                  {isLoading ? 'Sending…' : 'Send'}
+                </button>
               </div>
-            ))}
-            {isLoading && (
-              <div className="message ai typing-indicator">
-                <p>AI is thinking...</p>
-              </div>
-            )}
+            </form>
           </div>
-          <form onSubmit={handleSubmit} className="message-input-form">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about Census data maps - e.g., 'Show population by state'"
-              rows="3"
-            />
-            <button type="submit" disabled={isLoading}>Send</button>
-          </form>
         </div>
       )}
 
@@ -508,28 +601,39 @@ function App() {
             <h3>{activeMapData.type === 'dashboard' ? 'Census Data Dashboard' : 'Census Data Map'}</h3>
           </div>
           
-          {activeMapData.type === 'dashboard' && (
-            <Dashboard dashboardData={activeMapData.dashboardData} />
-          )}
-          {activeMapData.type === 'time_series' && (
-            <TimeSeriesDashboard
-              dashboardData={activeMapData.dashboardData}
-              currentYear={currentYear}
-              onYearChange={handleTimeSeriesYearChange}
-              onBack={() => setActiveMapData(null)}
-            />
-          )}
-          {activeMapData.type === 'map' && (
-            <MapDisplay
-              data={activeMapData.data}
-              display_variable_id={activeMapData.displayVariableId}
-              variable_labels={activeMapData.variableLabels}
-              geography_level={activeMapData.metadata?.geography_level}
-              metadata={activeMapData.metadata}
-              mapCenter={activeMapData.mapCenter}
-              mapZoom={activeMapData.mapZoom}
-            />
-          )}
+          <Suspense fallback={
+            <div className="viz-loading">
+              <div className="viz-loading-spinner" />
+              <p>Loading visualization...</p>
+            </div>
+          }>
+            {activeMapData.type === 'dashboard' && (
+              <Dashboard
+                dashboardData={activeMapData.dashboardData}
+                onBack={() => setActiveMapData(null)}
+              />
+            )}
+            {activeMapData.type === 'time_series' && (
+              <Dashboard
+                dashboardData={activeMapData.dashboardData}
+                isTimeSeries={true}
+                currentYear={currentYear}
+                onYearChange={handleTimeSeriesYearChange}
+                onBack={() => setActiveMapData(null)}
+              />
+            )}
+            {activeMapData.type === 'map' && (
+              <MapDisplay
+                data={activeMapData.data}
+                display_variable_id={activeMapData.displayVariableId}
+                variable_labels={activeMapData.variableLabels}
+                geography_level={activeMapData.metadata?.geography_level}
+                metadata={activeMapData.metadata}
+                mapCenter={activeMapData.mapCenter}
+                mapZoom={activeMapData.mapZoom}
+              />
+            )}
+          </Suspense>
         </div>
       )}
     </div>
