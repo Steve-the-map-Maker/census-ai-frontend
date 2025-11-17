@@ -91,7 +91,7 @@ function HelpModal({ isOpen, onClose }) {
 const CHAT_CHIPS = [
   {
     label: 'State population leaders',
-    prompt: 'Show population by state and highlight the fastest growing ones',
+    prompt: 'Show population by state and rank the top 10',
   },
   {
     label: 'County drilldown',
@@ -110,7 +110,7 @@ const HELP_SECTIONS = [
     title: 'Popular comparisons',
     body: 'Tap a shortcut to auto-fill the composer, then add your own twist.',
     prompts: [
-      'Compare median income between coastal and inland states',
+      'Show median income by state and identify regional patterns',
       'Show poverty rate trend for Mississippi since 2010',
       'Map places in Arizona with population over 50k',
     ],
@@ -132,7 +132,7 @@ const HELP_SECTIONS = [
     body: 'We currently support all 50 states + DC, with county-level detail nationwide and many major places.',
     prompts: [
       'Zoom into Texas counties for household income',
-      'Show New England states ranked by unemployment',
+      'Compare unemployment rates across all states',
     ],
   },
 ];
