@@ -57,7 +57,6 @@ function HomeLanding({ onStartChat, onSelectPrompt }) {
   return (
     <div className="home-landing">
       <section className="home-hero">
-        <p className="eyebrow">Phase 12 • Mobile-first preview</p>
         <h1>Ask anything about U.S. Census data and watch it visualize instantly.</h1>
         <p className="hero-body">
           Combine conversational AI with geo visualizations, dashboards, and time-series sliders built
