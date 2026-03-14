@@ -261,10 +261,15 @@ function MapDisplay({
   }
   
   if (!enrichedGeoJson) {
+    const isUnsupportedLevel = ['place', 'tract', 'zip code tabulation area', 'block group', 'metropolitan statistical area'].includes(geography_level);
     return (
       <div className="map-loading">
         <h3>⚠️ Map Unavailable</h3>
-        <p>Unable to load geographic data for {geography_level} level</p>
+        {isUnsupportedLevel ? (
+          <p>Map visualization is currently only available for <strong>State</strong> and <strong>County</strong> levels. Data for {geography_level} can still be viewed in the panels to the right.</p>
+        ) : (
+          <p>Unable to load geographic data for {geography_level} level.</p>
+        )}
       </div>
     );
   }
